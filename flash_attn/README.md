@@ -4,7 +4,7 @@
   <img width="894" height="168" alt="Screenshot from 2025-09-14 10-58-05" src="https://github.com/user-attachments/assets/dfc48d67-b8c2-4d6f-ac53-4383940b9109" />
   
 * Flash Attention
-  <img width="880" height="600" alt="image" src="https://github.com/user-attachments/assets/925841e6-efd7-4810-b808-6d86460a0e3b" />
+  <img width="1207" height="753" alt="image" src="https://github.com/user-attachments/assets/1fa7b3fe-c10a-4b85-9d4c-1eba9d269f0f" />
   
   <img width="956" height="497" alt="image" src="https://github.com/user-attachments/assets/672ae0e1-0c4d-43ce-a30e-6d6640e4f041" />
   
