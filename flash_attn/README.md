@@ -6,7 +6,10 @@
 * Flash Attention
   <img width="1207" height="753" alt="image" src="https://github.com/user-attachments/assets/1fa7b3fe-c10a-4b85-9d4c-1eba9d269f0f" />
 
-  There is a mistake in the above algorithm in line 10, inverse shouldn't be there... see [Algo Typo Issue](https://github.com/Dao-AILab/flash-attention/issues/991)
+  > There is a mistake in the above algorithm in line 10, inverse shouldn't be there... see [Algo Typo Issue](https://github.com/Dao-AILab/flash-attention/issues/991)
+  > <img width="1284" height="603" alt="image" src="https://github.com/user-attachments/assets/ace4dfa2-4ac6-48bb-9583-707c8234f126" />
+  > <img width="1160" height="606" alt="image" src="https://github.com/user-attachments/assets/5d619ebe-d76c-48a2-878b-7eb3e12b1408" />
+
   
   <img width="956" height="497" alt="image" src="https://github.com/user-attachments/assets/672ae0e1-0c4d-43ce-a30e-6d6640e4f041" />
   
