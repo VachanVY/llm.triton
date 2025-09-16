@@ -18,3 +18,6 @@
   <img width="1024" height="529" alt="image" src="https://github.com/user-attachments/assets/fd57d005-895c-4614-8816-f22565cd13c5" />
   
   <img width="1508" height="453" alt="image" src="https://github.com/user-attachments/assets/d72b21e0-dfc6-4e36-b005-52b06b7db7cc" />
+
+* Triton Transpose Stuff
+  <img width="1059" height="438" alt="image" src="https://github.com/user-attachments/assets/146784ad-9734-425a-8b60-d43de6b6febf" />
