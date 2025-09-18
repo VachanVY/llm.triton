@@ -54,7 +54,7 @@ def benchmark(B, num_heads, T, dim):
     torch.cuda.synchronize()
     start = time.time()
     for _ in range(100):
-        y_triton = flash_attn_forward(q, k, v, attn_mask)
+        y_triton = flash_attn_forward(q, k, v, attn_mask, DOTPROD_PRECISION="tf32")
     torch.cuda.synchronize()
     triton_ms = (time.time() - start) * 1e3 / 100
 

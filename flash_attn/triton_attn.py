@@ -134,7 +134,7 @@ def flash_attn_forward(
         *q.stride(), *k.stride(), *v.stride(),
         *attn_mask.stride(), *out.stride(), 
         T, dim, sm_scale=(1/(dim**0.5)),
-        DOTPROD_PRECISION=kwargs.get("DOTPROD_PRECISION", "ieee")
+        DOTPROD_PRECISION=kwargs.get("DOTPROD_PRECISION", "tf32")
     )
     return out
 
