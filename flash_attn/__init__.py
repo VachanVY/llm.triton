@@ -1,1 +1,2 @@
 from .torch_attn import CausalSelfAttention as TorchCausalSelfAttention
+from .triton_attn import flash_attn_forward

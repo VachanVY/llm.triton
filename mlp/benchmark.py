@@ -3,8 +3,11 @@ import torch
 from torch import Tensor
 import matplotlib.pyplot as plt
 
-from mlp.triton_mlpblock import linear_forward
-from torch_mlpblock import MLP
+from triton_mlpblock import linear_forward
+
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+
 
 @torch.no_grad()
 def benchmark(
@@ -28,24 +31,26 @@ def benchmark(
 
     # --- warmup ---
     for _ in range(10):
-        _ = linear_forward(x, triton_weight, triton_bias, activation_type=activation_type)
+        _ = linear_forward(x, triton_weight, triton_bias, activation_type=activation_type)#dotprod_precision="ieee")
         _ = torch.nn.functional.gelu(torch.nn.functional.linear(x, torch_weight.T, torch_bias))
 
     # --- benchmark triton ---
-    torch.cuda.synchronize()
-    start = time.time()
-    for _ in range(100):
-        y_triton = linear_forward(x, triton_weight, triton_bias, activation_type=activation_type)
-    torch.cuda.synchronize()
-    triton_ms = (time.time() - start) * 1e3 / 100
+    with torch.no_grad():
+        torch.cuda.synchronize()
+        start = time.time()
+        for _ in range(100):
+            y_triton = linear_forward(x, triton_weight, triton_bias, activation_type=activation_type)
+        torch.cuda.synchronize()
+        triton_ms = (time.time() - start) * 1e3 / 100
 
-    # --- benchmark torch ---
-    torch.cuda.synchronize()
-    start = time.time()
-    for _ in range(100):
-        y_torch = torch.nn.functional.gelu(torch.nn.functional.linear(x, torch_weight.T, torch_bias))
-    torch.cuda.synchronize()
-    torch_ms = (time.time() - start) * 1e3 / 100
+        # --- benchmark torch ---
+        torch.cuda.synchronize()
+        _torch_weight = torch_weight.T
+        start = time.time()
+        for _ in range(100):
+            y_torch = torch.nn.functional.gelu(torch.nn.functional.linear(x, _torch_weight, torch_bias))
+        torch.cuda.synchronize()
+        torch_ms = (time.time() - start) * 1e3 / 100
 
     # correctness check
     assert torch.allclose(y_triton, y_torch, atol=1e-2, rtol=1e-2), "Mismatch"
@@ -74,5 +79,3 @@ if __name__ == "__main__":
     plt.grid(True)
     plt.savefig("triton_vs_torch_mlp.png")
     plt.close()
-
-

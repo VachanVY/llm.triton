@@ -3,7 +3,6 @@ import triton
 from torch import Tensor
 import torch
 
-
 @triton.jit
 def gelu(x):
     return 0.5 * x * (1.0 + tl.erf(x / 1.4142135623730951))
@@ -18,7 +17,7 @@ def gelu(x):
         triton.Config({'BLOCK_B': 32, 'BLOCK_T': 32, 'BLOCK_FEAT_IN': 64, 'BLOCK_FEAT_OUT': 64}, num_warps=8, num_stages=3),
         triton.Config({'BLOCK_B': 64, 'BLOCK_T': 64, 'BLOCK_FEAT_IN': 32, 'BLOCK_FEAT_OUT': 32}, num_warps=8, num_stages=3),
     ],
-    key=['B', 'T', 'FEAT_IN', 'FEAT_OUT'],
+    key=['FEAT_IN', 'FEAT_OUT'],  # Only autotune when model architecture changes, not B/T
 )
 @triton.jit
 def _fused_linear_forward_kernel(

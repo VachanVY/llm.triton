@@ -1,9 +1,8 @@
 """
-https://github.com/karpathy/nanoGPT/blob/master/model.py
+With some modifications from https://github.com/karpathy/nanoGPT/blob/master/model.py
 """
 
 """
-Full definition of a GPT Language Model, all of it in this single file.
 References:
 1) the official GPT-2 TensorFlow implementation released by OpenAI:
 https://github.com/openai/gpt-2/blob/master/src/model.py
@@ -22,10 +21,25 @@ from torch.nn import functional as F
 # modularized components
 from layernorm import TorchLayerNorm
 from flash_attn import TorchCausalSelfAttention
-from mlp import TorchMLPBlock, TorchLinear
+from mlp import TorchLinear
 
 # RTX 4090 in float32
-FLOPS_PROMISED = 8.26e13
+# FLOPS_PROMISED = 8.26e13
+
+
+class TorchMLPBlock(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.c_fc    = TorchLinear(config.n_embd, 4 * config.n_embd, bias=config.bias)
+        self.gelu    = nn.GELU()
+        self.c_proj  = TorchLinear(4 * config.n_embd, config.n_embd, bias=config.bias)
+
+    def forward(self, x):
+        x = self.c_fc(x)
+        x = self.gelu(x)
+        x = self.c_proj(x)
+        return x
+    
 
 class Block(nn.Module):
     def __init__(self, config):
@@ -61,7 +75,6 @@ class GPT(nn.Module):
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),
             wpe = nn.Embedding(config.block_size, config.n_embd),
-            drop = nn.Dropout(config.dropout),
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             ln_f = TorchLayerNorm(config.n_embd, bias=config.bias),
         ))
@@ -96,7 +109,7 @@ class GPT(nn.Module):
         # forward the GPT model itself
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos) # position embeddings of shape (t, n_embd)
-        x = self.transformer.drop(tok_emb + pos_emb)
+        x = tok_emb + pos_emb
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
@@ -169,22 +182,6 @@ class GPT(nn.Module):
 
         return model
 
-    def estimate_mfu(self, fwdbwd_per_iter, dt):
-        """ estimate model flops utilization (MFU) in units of A100 bfloat16 peak FLOPS """
-        # first estimate the number of flops we do per iteration.
-        # see PaLM paper Appendix B as ref: https://arxiv.org/abs/2204.02311
-        N = self.get_num_params()
-        cfg = self.config
-        L, H, Q, T = cfg.n_layer, cfg.n_head, cfg.n_embd//cfg.n_head, cfg.block_size
-        flops_per_token = 6*N + 12*L*H*Q*T
-        flops_per_fwdbwd = flops_per_token * T
-        flops_per_iter = flops_per_fwdbwd * fwdbwd_per_iter
-        # express our flops throughput as ratio of A100 bfloat16 peak flops
-        flops_achieved = flops_per_iter * (1.0/dt) # per second
-        
-        mfu = flops_achieved / FLOPS_PROMISED
-        return mfu
-
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
         """
@@ -211,3 +208,64 @@ class GPT(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
+    
+
+if __name__ == "__main__":
+    # save weights for loading a faster inference model written in triton in the form:
+    """
+    gpt_weights = {
+        "embedding_weights": embeddings,
+        "positional_embeddings": pos_embeddings,
+        "block_1": {
+                "layernorm_1": (ln_weight, ln_bias),
+                "attn": {
+                    ...
+                    }
+                "layernorm_2": (ln_weight, ln_bias),
+                "mlp_block": {
+                    "weights1": (mlp_fc_weight, mlp_fc_bias),
+                    "weights2": (mlp_proj_weight, mlp_proj_bias)
+                }
+
+        },
+        ...
+        "block_n": { ... }
+        "final_layernorm": (ln_weight, ln_bias)
+        "linear_head": (lm_head_weight, lm_head_bias=None)
+    }
+    """
+    import sys
+    model_name = sys.argv[1] # gpt2, gpt2-medium, gpt2-large, gpt2-xl
+    assert model_name in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
+    print("loading model:", model_name)
+    model = GPT.from_pretrained(model_name)
+    model.eval()
+    gpt_weights = {}
+    gpt_weights["embedding_weights"] = model.transformer.wte.weight.cpu()
+    gpt_weights["positional_embeddings"] = model.transformer.wpe.weight.cpu()
+    for i, block in enumerate(model.transformer.h):
+        block_weights = {}
+        block_weights["layernorm_1"] = (block.ln_1.weight.cpu(), block.ln_1.bias.cpu() if block.ln_1.bias is not None else None)
+        # attention weights
+        attn_weights = {}
+        attn_weights["c_attn_weight"] = block.attn.c_attn.weight.cpu()
+        attn_weights["c_attn_bias"] = block.attn.c_attn.bias.cpu() if block.attn.c_attn.bias is not None else None
+        attn_weights["c_proj_weight"] = block.attn.c_proj.weight.cpu()
+        attn_weights["c_proj_bias"] = block.attn.c_proj.bias.cpu() if block.attn.c_proj.bias is not None else None
+        attn_weights["n_head"] = torch.tensor(block.attn.n_head).cpu()
+        attn_weights["n_embd"] = torch.tensor(block.attn.n_embd).cpu()
+        block_weights["attn"] = attn_weights
+        # layernorm 2 weights
+        block_weights["layernorm_2"] = (block.ln_2.weight.cpu(), block.ln_2.bias.cpu() if block.ln_2.bias is not None else None)
+        # mlp weights
+        mlp_weights = {}
+        mlp_weights["weights1"] = (block.mlp.c_fc.weight.cpu(), block.mlp.c_fc.bias.cpu() if block.mlp.c_fc.bias is not None else None)
+        mlp_weights["weights2"] = (block.mlp.c_proj.weight.cpu(), block.mlp.c_proj.bias.cpu() if block.mlp.c_proj.bias is not None else None)
+        block_weights["mlp_block"] = mlp_weights
+
+        gpt_weights[f"block_{i+1}"] = block_weights
+    gpt_weights["final_layernorm"] = (model.transformer.ln_f.weight.cpu(), model.transformer.ln_f.bias.cpu() if model.transformer.ln_f.bias is not None else None)
+    gpt_weights["linear_head"] = (model.lm_head.weight.cpu(), model.lm_head.bias.cpu() if model.lm_head.bias is not None else None)
+    torch.save(gpt_weights, f"{model_name}_weights.pth")
+    print(f"saved weights to {model_name}_weights.pth")
+    
