@@ -1,3 +1,7 @@
+# Flash Attention
+* TODO: Have to optimize Triton Flash Attention to make it faster than manual PyTorch Implementation
+* ![](triton_vs_torch_flash_attn.png)
+
 # Attention
 * Standard Attention
   
